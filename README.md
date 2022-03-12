@@ -1,35 +1,35 @@
-# @hyperspace/client
+# bitspace-client
 
-Standalone Hyperspace RPC client
+Standalone BitSpace RPC client
 
 ```
-npm install @hyperspace/client
+npm install bitspace-client
 ```
 
 # Usage
 
 ``` js
-const HyperspaceClient = require('@hyperspace/client')
+const BitspaceClient = require('bitspace-client')
 
-const client = new HyperspaceClient() // connect to the Hyperspace server
+const client = new BitspaceClient() // connect to the Bitspace server
 
-const corestore = client.corestore() // make a corestore
+const chainstore = client.chainstore() // make a chainstore
 
-const feed = corestore.get(someHypercoreKey) // make a hypercore
+const feed = chainstore.get(someUnichainKey) // make a unichain
 
-await feed.get(42) // get some data from the hypercore
+await feed.get(42) // get some data from the unichain
 ```
 
 # API
 
-#### `const client = new HyperspaceClient([options])`
+#### `const client = new BitspaceClient([options])`
 
-Make a new Hyperspace RPC client. Options include:
+Make a new Bitspace RPC client. Options include:
 
 ``` js
 {
-  host: 'hyperspace', // the ipc name of the running server
-                      // defaults to hyperspace
+  host: 'bitspace', // the ipc name of the running server
+                      // defaults to bitspace
   port                // a TCP port to connect to
 }
 ```
@@ -38,7 +38,7 @@ If `port` is specified, or `host` and `port` are both specified, then the client
 
 If you only provide a `host` option, then it will be considered a Unix socket name.
 
-#### `await HyperspaceClient.serverReady([host])`
+#### `await BitspaceClient.serverReady([host])`
 
 Static method to wait for the local IPC server to be up and running.
 
@@ -54,42 +54,42 @@ Fully close the client. Cancels all inflight requests.
 
 Wait for the client to have fully connected and loaded initial data.
 
-#### `corestore = client.corestore([namespace])`
+#### `chainstore = client.chainstore([namespace])`
 
-Make a new remote corestore. Optionally you can pass a specific namespace
-to load a specific corestore. If you do not pass a namespace a random one is generated for you.
+Make a new remote chainstore. Optionally you can pass a specific namespace
+to load a specific chainstore. If you do not pass a namespace a random one is generated for you.
 
 #### `client.network`
 
-The remote corestore network instance.
+The remote chainstore network instance.
 
-#### `client.replicate(core)`
+#### `client.replicate(chain)`
 
-A one-line replication function for `RemoteHypercores` (see below for details).
+A one-line replication function for `Remote (see below for details).
 
-## Remote Corestore
+## Remote Chainstore
 
-The remote corestore instances has an API that mimicks the normal [corestore](https://github.com/andrewosh/corestore) API.
+The remote chainstore instances has an API that mimicks the normal [chainstore](https://github.com/andrewosh/chainstore) API.
 
-#### `feed = corestore.get([key])`
+#### `feed = chainstore.get([key])`
 
-Make a new remote hypercore instance. If you pass a key that specific feed is loaded, if not a new one is made.
+Make a new remote unichain instance. If you pass a key that specific feed is loaded, if not a new one is made.
 
-#### `feed = corestore.default()`
+#### `feed = chainstore.default()`
 
-Get the "default" feed for this corestore, which is derived from the namespace.
+Get the "default" feed for this chainstore, which is derived from the namespace.
 
 #### `feed.name`
 
-The name (namespace) of this corestore.
+The name (namespace) of this chainstore.
 
 #### `async feed.close([callback])`
 
-Close the corestore. Closes all feeds made in this corestore.
+Close the chainstore. Closes all feeds made in this chainstore.
 
 ## Remote Networker
 
-The remote networker instance has an API that mimicks the normal [corestore networker](https://github.com/andrewosh/corestore-networker) API.
+The remote networker instance has an API that mimicks the normal [chainstore networker](https://github.com/bitwebs/chainstore-networker) API.
 
 #### `await network.ready([callback])`
 
@@ -108,9 +108,9 @@ Emitted when a peer is added.
 
 Emitted when a peer is removed.
 
-#### `await network.configure(discoveryKey | RemoteHypercore, options)`
+#### `await network.configure(discoveryKey | RemoteUnichain, options)`
 
-Configure the network for this specific discovery key or RemoteHypercore.
+Configure the network for this specific discovery key or RemoteUnichain.
 Options include:
 
 ```
@@ -128,7 +128,7 @@ Register a network protocol extension.
 
 ## Remote Feed
 
-The remote feed instances has an API that mimicks the normal [Hypercore](https://github.com/hypercore-protocol/hypercore) API.
+The remote feed instances has an API that mimicks the normal [Unichain](https://github.com/unichain-protocol/unichain) API.
 
 #### `feed.key`
 
@@ -160,7 +160,7 @@ Options include:
 }
 ```
 
-See the [Hypercore docs](https://github.com/hypercore-protocol/hypercore) for more info on these options.
+See the [Unichain docs](https://github.com/bitwebs/unichain) for more info on these options.
 
 Note if you don't await the promise straight away you can use it to to cancel the operation, later using `feed.cancel`
 
@@ -203,11 +203,11 @@ Options include:
 }
 ```
 
-See the [Hypercore docs](https://github.com/hypercore-protocol/hypercore) for more info on these options.
+See the [Unichain docs](https://github.com/bitwebs/unichain) for more info on these options.
 
 #### `await feed.append(blockOrArrayOfBlocks, [callback])`
 
-Append a block or array of blocks to the hypercore
+Append a block or array of blocks to the unichain
 
 #### `feed.peers`
 
@@ -235,15 +235,15 @@ Emitted when a block is uploaded. `data` is a pseudo-buffer with `{length, byteL
 
 ## Replicator
 
-Hyperspace also includes a simple replication function for `RemoteHypercores` that does two things:
-1. It first configures the network (`client.network.configure(core, { announce: true, lookup: true })`)
-2. Then it does a `core.update({ ifAvailable: true })` to try to fetch the latest length from the network.
+Bitspace also includes a simple replication function for `RemoteUnichains` that does two things:
+1. It first configures the network (`client.network.configure(chain, { announce: true, lookup: true })`)
+2. Then it does a `chain.update({ ifAvailable: true })` to try to fetch the latest length from the network.
 
-This saves a bit of time when swarming a `RemoteHypercore`.
+This saves a bit of time when swarming a `RemoteUnichain`.
 
-#### `await replicate(core)`
+#### `await replicate(chain)`
 
-Quickly connect a `RemoteHypercore` to the Hyperswarm network.
+Quickly connect a `RemoteUnichain` to the BitSwarm network.
 
 # License
 

@@ -3,22 +3,22 @@ const maybe = require('call-me-maybe')
 const codecs = require('codecs')
 const inspect = require('inspect-custom-symbol')
 const FreeMap = require('freemap')
-const { WriteStream, ReadStream } = require('hypercore-streams')
-const PROMISES = Symbol.for('hypercore.promises')
+const { WriteStream, ReadStream } = require('@web4/unichain-streams')
+const PROMISES = Symbol.for('unichain.promises')
 
 const { NanoresourcePromise: Nanoresource } = require('nanoresource-promise/emitter')
-const HRPC = require('@hyperspace/rpc')
-const getNetworkOptions = require('@hyperspace/rpc/socket')
+const HRPC = require('bitspace-rpc')
+const getNetworkOptions = require('bitspace-rpc/socket')
 const net = require('net')
 
 class Sessions {
   constructor () {
-    this._cores = new FreeMap()
+    this._chains = new FreeMap()
     this._resourceCounter = 0
   }
 
-  create (remoteCore) {
-    return this._cores.add(remoteCore)
+  create (remoteChain) {
+    return this._chains.add(remoteChain)
   }
 
   createResourceId () {
@@ -26,15 +26,15 @@ class Sessions {
   }
 
   delete (id) {
-    this._cores.free(id)
+    this._chains.free(id)
   }
 
   get (id) {
-    return this._cores.get(id)
+    return this._chains.get(id)
   }
 }
 
-class RemoteCorestore extends EventEmitter {
+class RemoteChainstore extends EventEmitter {
   constructor (opts = {}) {
     super()
 
@@ -43,49 +43,49 @@ class RemoteCorestore extends EventEmitter {
     this._sessions = opts.sessions || new Sessions()
     this._feeds = new Map()
 
-    this._client.hypercore.onRequest(this, {
+    this._client.unichain.onRequest(this, {
       onAppend ({ id, length, byteLength }) {
-        const remoteCore = this._sessions.get(id)
-        if (!remoteCore) throw new Error('Invalid RemoteHypercore ID.')
-        remoteCore._onappend({ length, byteLength })
+        const remoteChain = this._sessions.get(id)
+        if (!remoteChain) throw new Error('Invalid RemoteUnichain ID.')
+        remoteChain._onappend({ length, byteLength })
       },
       onClose ({ id }) {
-        const remoteCore = this._sessions.get(id)
-        if (!remoteCore) throw new Error('Invalid RemoteHypercore ID.')
-        remoteCore.close(() => {}) // no unhandled rejects
+        const remoteChain = this._sessions.get(id)
+        if (!remoteChain) throw new Error('Invalid RemoteUnichain ID.')
+        remoteChain.close(() => {}) // no unhandled rejects
       },
       onPeerOpen ({ id, peer }) {
-        const remoteCore = this._sessions.get(id)
-        if (!remoteCore) throw new Error('Invalid RemoteHypercore ID.')
-        remoteCore._onpeeropen(peer)
+        const remoteChain = this._sessions.get(id)
+        if (!remoteChain) throw new Error('Invalid RemoteUnichain ID.')
+        remoteChain._onpeeropen(peer)
       },
       onPeerRemove ({ id, peer }) {
-        const remoteCore = this._sessions.get(id)
-        if (!remoteCore) throw new Error('Invalid RemoteHypercore ID.')
-        remoteCore._onpeerremove(peer)
+        const remoteChain = this._sessions.get(id)
+        if (!remoteChain) throw new Error('Invalid RemoteUnichain ID.')
+        remoteChain._onpeerremove(peer)
       },
       onExtension ({ id, resourceId, remotePublicKey, data }) {
-        const remoteCore = this._sessions.get(id)
-        if (!remoteCore) throw new Error('Invalid RemoteHypercore ID.')
-        remoteCore._onextension({ resourceId, remotePublicKey, data })
+        const remoteChain = this._sessions.get(id)
+        if (!remoteChain) throw new Error('Invalid RemoteUnichain ID.')
+        remoteChain._onextension({ resourceId, remotePublicKey, data })
       },
       onWait ({ id, onWaitId, seq }) {
-        const remoteCore = this._sessions.get(id)
-        if (!remoteCore) throw new Error('Invalid RemoteHypercore ID.')
-        remoteCore._onwait(onWaitId, seq)
+        const remoteChain = this._sessions.get(id)
+        if (!remoteChain) throw new Error('Invalid RemoteUnichain ID.')
+        remoteChain._onwait(onWaitId, seq)
       },
       onDownload ({ id, seq, byteLength }) {
-        const remoteCore = this._sessions.get(id)
-        if (!remoteCore) throw new Error('Invalid RemoteHypercore ID.')
-        remoteCore._ondownload({ seq, byteLength })
+        const remoteChain = this._sessions.get(id)
+        if (!remoteChain) throw new Error('Invalid RemoteUnichain ID.')
+        remoteChain._ondownload({ seq, byteLength })
       },
       onUpload ({ id, seq, byteLength }) {
-        const remoteCore = this._sessions.get(id)
-        if (!remoteCore) throw new Error('Invalid RemoteHypercore ID.')
-        remoteCore._onupload({ seq, byteLength })
+        const remoteChain = this._sessions.get(id)
+        if (!remoteChain) throw new Error('Invalid RemoteUnichain ID.')
+        remoteChain._onupload({ seq, byteLength })
       }
     })
-    this._client.corestore.onRequest(this, {
+    this._client.chainstore.onRequest(this, {
       onFeed ({ key }) {
         return this._onfeed(key)
       }
@@ -102,7 +102,7 @@ class RemoteCorestore extends EventEmitter {
   // Public Methods
 
   replicate () {
-    throw new Error('Cannot call replicate on a RemoteCorestore')
+    throw new Error('Cannot call replicate on a RemoteChainstore')
   }
 
   default (opts = {}) {
@@ -119,7 +119,7 @@ class RemoteCorestore extends EventEmitter {
     let hex = key && key.toString('hex')
     if (hex && this._feeds.has(hex)) return this._feeds.get(hex)
 
-    const feed = new RemoteHypercore(this._client, this._sessions, key, opts)
+    const feed = new RemoteUnichain(this._client, this._sessions, key, opts)
 
     if (hex) {
       this._feeds.set(hex, feed)
@@ -234,9 +234,9 @@ class RemoteNetworker extends EventEmitter {
 
   async _configure (discoveryKey, opts) {
     if (typeof discoveryKey === 'object' && !Buffer.isBuffer(discoveryKey)) {
-      const core = discoveryKey
-      if (!core.discoveryKey) await core.ready()
-      discoveryKey = core.discoveryKey
+      const chain = discoveryKey
+      if (!chain.discoveryKey) await chain.ready()
+      discoveryKey = chain.discoveryKey
     }
     return this._client.network.configure({
       configuration: {
@@ -352,7 +352,7 @@ class RemoteNetworkerExtension {
   }
 }
 
-class RemoteHypercore extends Nanoresource {
+class RemoteUnichain extends Nanoresource {
   constructor (client, sessions, key, opts) {
     super()
     this.key = key
@@ -417,7 +417,7 @@ class RemoteHypercore extends Nanoresource {
     if (typeof opts.indentationLvl === 'number') {
       while (indent.length < opts.indentationLvl) indent += ' '
     }
-    return 'RemoteHypercore(\n' +
+    return 'RemoteUnichain(\n' +
       indent + '  key: ' + opts.stylize(this.key && this.key.toString('hex'), 'string') + '\n' +
       indent + '  discoveryKey: ' + opts.stylize(this.discoveryKey && this.discoveryKey.toString('hex'), 'string') + '\n' +
       indent + '  opened: ' + opts.stylize(this.opened, 'boolean') + '\n' +
@@ -432,7 +432,7 @@ class RemoteHypercore extends Nanoresource {
 
   async _open () {
     if (this.lazy) this._id = this._sessions.create(this)
-    const rsp = await this._client.corestore.open({
+    const rsp = await this._client.chainstore.open({
       id: this._id,
       name: this._name,
       key: this.key,
@@ -448,7 +448,7 @@ class RemoteHypercore extends Nanoresource {
   }
 
   async _close () {
-    await this._client.hypercore.close({ id: this._id })
+    await this._client.unichain.close({ id: this._id })
     this._sessions.delete(this._id)
     this.emit('close')
   }
@@ -470,7 +470,7 @@ class RemoteHypercore extends Nanoresource {
   }
 
   _onpeeropen (peer) {
-    const remotePeer = new RemoteHypercorePeer(peer.type, peer.remoteAddress, peer.remotePublicKey)
+    const remotePeer = new RemoteUnichainPeer(peer.type, peer.remoteAddress, peer.remotePublicKey)
     this.peers.push(remotePeer)
     this.emit('peer-add', remotePeer) // compat
     this.emit('peer-open', remotePeer)
@@ -518,7 +518,7 @@ class RemoteHypercore extends Nanoresource {
 
     if (!Array.isArray(blocks)) blocks = [blocks]
     if (this.valueEncoding) blocks = blocks.map(b => this.valueEncoding.encode(b))
-    const rsp = await this._client.hypercore.append({
+    const rsp = await this._client.unichain.append({
       id: this._id,
       blocks
     })
@@ -536,7 +536,7 @@ class RemoteHypercore extends Nanoresource {
     let rsp
 
     try {
-      rsp = await this._client.hypercore.get({
+      rsp = await this._client.unichain.get({
         ...opts,
         seq,
         id: this._id,
@@ -558,7 +558,7 @@ class RemoteHypercore extends Nanoresource {
       if (this.closed) return
     } catch (_) {}
 
-    this._client.hypercore.cancelNoReply({
+    this._client.unichain.cancelNoReply({
       id: this._id,
       resourceId
     })
@@ -571,7 +571,7 @@ class RemoteHypercore extends Nanoresource {
     if (typeof opts === 'number') opts = { minLength: opts }
     if (!opts) opts = {}
     if (typeof opts.minLength !== 'number') opts.minLength = this.length + 1
-    return await this._client.hypercore.update({
+    return await this._client.unichain.update({
       ...opts,
       id: this._id
     })
@@ -581,7 +581,7 @@ class RemoteHypercore extends Nanoresource {
     if (!this.opened) await this.open()
     if (this.closed) throw new Error('Feed is closed')
 
-    const rsp = await this._client.hypercore.seek({
+    const rsp = await this._client.unichain.seek({
       byteOffset,
       ...opts,
       id: this._id
@@ -596,7 +596,7 @@ class RemoteHypercore extends Nanoresource {
     if (!this.opened) await this.open()
     if (this.closed) throw new Error('Feed is closed')
 
-    const rsp = await this._client.hypercore.has({
+    const rsp = await this._client.unichain.has({
       seq,
       id: this._id
     })
@@ -607,7 +607,7 @@ class RemoteHypercore extends Nanoresource {
     if (!this.opened) await this.open()
     if (this.closed) throw new Error('Feed is closed')
 
-    return this._client.hypercore.download({ ...range, id: this._id, resourceId })
+    return this._client.unichain.download({ ...range, id: this._id, resourceId })
   }
 
   async _undownload (resourceId) {
@@ -616,13 +616,13 @@ class RemoteHypercore extends Nanoresource {
       if (this.closed) return
     } catch (_) {}
 
-    return this._client.hypercore.undownloadNoReply({ id: this._id, resourceId })
+    return this._client.unichain.undownloadNoReply({ id: this._id, resourceId })
   }
 
   async _downloaded (start, end) {
     if (!this.opened) await this.open()
     if (this.closed) throw new Error('Feed is closed')
-    const rsp = await this._client.hypercore.downloaded({ id: this._id, start, end })
+    const rsp = await this._client.unichain.downloaded({ id: this._id, start, end })
     return rsp.bytes
   }
 
@@ -630,7 +630,7 @@ class RemoteHypercore extends Nanoresource {
     try {
       if (!this.opened) await this.open()
       if (this.closed) return
-      this._client.hypercore.watchDownloadsNoReply({ id: this._id })
+      this._client.unichain.watchDownloadsNoReply({ id: this._id })
     } catch (_) {}
   }
 
@@ -638,7 +638,7 @@ class RemoteHypercore extends Nanoresource {
     try {
       if (!this.opened) await this.open()
       if (this.closed) return
-      this._client.hypercore.unwatchDownloadsNoReply({ id: this._id })
+      this._client.unichain.unwatchDownloadsNoReply({ id: this._id })
     } catch (_) {}
   }
 
@@ -646,7 +646,7 @@ class RemoteHypercore extends Nanoresource {
     try {
       if (!this.opened) await this.open()
       if (this.closed) return
-      this._client.hypercore.watchUploadsNoReply({ id: this._id })
+      this._client.unichain.watchUploadsNoReply({ id: this._id })
     } catch (_) {}
   }
 
@@ -654,7 +654,7 @@ class RemoteHypercore extends Nanoresource {
     try {
       if (!this.opened) await this.open()
       if (this.closed) return
-      this._client.hypercore.unwatchUploadsNoReply({ id: this._id })
+      this._client.unichain.unwatchUploadsNoReply({ id: this._id })
     } catch (_) {}
   }
 
@@ -745,7 +745,7 @@ class RemoteHypercore extends Nanoresource {
     const resourceId = this._sessions.createResourceId()
 
     const prom = this._download(range, resourceId)
-    prom.catch(noop) // optional promise due to the hypercore signature
+    prom.catch(noop) // optional promise due to the unichain signature
     prom.resourceId = resourceId
 
     maybe(cb, prom)
@@ -773,11 +773,11 @@ class RemoteHypercore extends Nanoresource {
     // TODO: refactor so this can be opened without waiting for open
     if (!this.opened) throw new Error('Cannot acquire a lock for an unopened feed')
 
-    const prom = this._client.hypercore.acquireLock({ id: this._id })
+    const prom = this._client.unichain.acquireLock({ id: this._id })
 
     if (onlocked) {
       const release = (cb, err, val) => { // mutexify interface
-        this._client.hypercore.releaseLockNoReply({ id: this._id })
+        this._client.unichain.releaseLockNoReply({ id: this._id })
         if (cb) cb(err, val)
       }
 
@@ -785,23 +785,23 @@ class RemoteHypercore extends Nanoresource {
       return
     }
 
-    return prom.then(() => () => this._client.hypercore.releaseLockNoReply({ id: this._id }))
+    return prom.then(() => () => this._client.unichain.releaseLockNoReply({ id: this._id }))
   }
 
   // TODO: Unimplemented methods
 
   registerExtension (name, opts) {
-    const ext = new RemoteHypercoreExtension(this, name, opts)
+    const ext = new RemoteUnichainExtension(this, name, opts)
     this._extensions.set(ext.resourceId, ext)
     return ext
   }
 
   replicate () {
-    throw new Error('Cannot call replicate on a RemoteHyperdrive')
+    throw new Error('Cannot call replicate on a RemoteBitdrive')
   }
 }
 
-class RemoteHypercorePeer {
+class RemoteUnichainPeer {
   constructor (type, remoteAddress, remotePublicKey) {
     this.type = type
     this.remoteAddress = remoteAddress
@@ -809,7 +809,7 @@ class RemoteHypercorePeer {
   }
 }
 
-class RemoteHypercoreExtension {
+class RemoteUnichainExtension {
   constructor (feed, name, opts = {}) {
     if (typeof name === 'object') {
       opts = name
@@ -835,7 +835,7 @@ class RemoteHypercoreExtension {
     }
 
     const reg = () => {
-      this.feed._client.hypercore.registerExtensionNoReply({
+      this.feed._client.unichain.registerExtensionNoReply({
         id: this.feed._id,
         resourceId: this.resourceId,
         name: this.name
@@ -855,7 +855,7 @@ class RemoteHypercoreExtension {
   broadcast (message) {
     const buf = this.encoding.encode(message)
     if (this.feed._id === undefined || this.destroyed) return
-    this.feed._client.hypercore.sendExtensionNoReply({
+    this.feed._client.unichain.sendExtensionNoReply({
       id: this.feed._id,
       resourceId: this.resourceId,
       remotePublicKey: null,
@@ -866,7 +866,7 @@ class RemoteHypercoreExtension {
   send (message, peer) {
     if (this.feed._id === undefined || this.destroyed) return
     const buf = this.encoding.encode(message)
-    this.feed._client.hypercore.sendExtensionNoReply({
+    this.feed._client.unichain.sendExtensionNoReply({
       id: this.feed._id,
       resourceId: this.resourceId,
       remotePublicKey: peer.remotePublicKey,
@@ -878,7 +878,7 @@ class RemoteHypercoreExtension {
     this.destroyed = true
     this.feed.ready((err) => {
       if (err) return this.onerror(err)
-      this.feed._client.hypercore.unregisterExtensionNoReply({
+      this.feed._client.unichain.unregisterExtensionNoReply({
         id: this.feed._id,
         resourceId: this.resourceId
       }, err => {
@@ -889,18 +889,18 @@ class RemoteHypercoreExtension {
   }
 }
 
-module.exports = class HyperspaceClient {
+module.exports = class BitspaceClient {
   constructor (opts = {}) {
     const sessions = new Sessions()
 
     this._socketOpts = getNetworkOptions(opts)
     this._client = HRPC.connect(this._socketOpts)
-    this._corestore = new RemoteCorestore({ client: this._client, sessions })
+    this._chainstore = new RemoteChainstore({ client: this._client, sessions })
 
     this.network = new RemoteNetworker({ client: this._client, sessions })
-    this.corestore = (name) => this._corestore.namespace(name)
+    this.chainstore = (name) => this._chainstore.namespace(name)
     // Exposed like this so that you can destructure: const { replicate } = new Client()
-    this.replicate = (core, cb) => maybeOptional(cb, this._replicate(core))
+    this.replicate = (chain, cb) => maybeOptional(cb, this._replicate(chain))
   }
 
   static async serverReady (opts) {
@@ -941,13 +941,13 @@ module.exports = class HyperspaceClient {
     return maybe(cb, this.network.ready())
   }
 
-  async _replicate (core) {
-    await this.network.configure(core, {
+  async _replicate (chain) {
+    await this.network.configure(chain, {
       announce: true,
       lookup: true
     })
     try {
-      await core.update({ ifAvailable: true })
+      await chain.update({ ifAvailable: true })
     } catch (_) {
       // If this update fails, the error can be ignored.
     }
