@@ -926,11 +926,11 @@ module.exports = class BitspaceClient {
   }
 
   status (cb) {
-    return maybe(cb, this._client.hyperspace.status())
+    return maybe(cb, this._client.bitspace.status())
   }
 
   stop (cb) {
-    return maybe(cb, this._client.hyperspace.stopNoReply())
+    return maybe(cb, this._client.bitspace.stopNoReply())
   }
 
   close () {
